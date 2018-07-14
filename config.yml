@@ -1,0 +1,28 @@
+local_v4:
+    interface: wlan1
+    address: 192.168.1.143
+    gateway_mac: '48:f8x:x:XX::X'
+    port: 6704
+local_v6:  
+    interface: wlan1
+    address: 'FFFF:FFFF::1'
+    gateway_mac: '48:f8x:x:XX::X'
+    port: 6704
+
+# IP addresses below can be v4 or v6.
+# listeners and receivers of different types can be mixed and matched.
+# The system will handle things automatically
+# Receivers can be either UDP or TCP, but spoofing will only work with UDP.  The option is ignored for TCP.
+
+sources:
+    - name: brk01
+      source_ip: 192.168.122.229
+      receivers:
+        - intake01
+
+receivers:
+    - name: intake01
+      spoof: False
+      proto: tcp
+      ip: 192.168.5.5
+      port: 3307

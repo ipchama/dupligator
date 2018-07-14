@@ -36,7 +36,7 @@ go build dupligator.go
 
 Contributions are welcome.
 
-DupliGator went from idea to completion in a few hours, and so there plenty of TODOs, points that need improvement, and features that can easily be added (TLS and authentication options for TCP?)
+DupliGator went from idea to completion in a few hours, and so there are plenty of TODOs, points that need improvement, and features that can easily be added (TLS and authentication options for TCP?)
 
 ## Versioning
 Haven't decided. :)

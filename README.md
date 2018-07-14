@@ -15,9 +15,10 @@ Just download, compile, and run.
 
 ### Prerequisites
 
-*https://github.com/google/gopacket
-*https://github.com/google/gopacket/layers
-*https://github.com/go-yaml/yaml
+* https://github.com/google/gopacket
+* https://github.com/google/gopacket/layers
+* https://github.com/go-yaml/yaml
+
 ```
 go get github.com/google/gopacket
 go get github.com/google/gopacket/layers

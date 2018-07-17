@@ -7,7 +7,6 @@ import (
 	"github.com/ipchama/dupligator/config"
 	"net"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 )
@@ -42,7 +41,6 @@ func New(globalConfig *config.Config, myConfig *config.ReceiverConfig, errFunc f
 		config:       myConfig,
 		name:         myConfig.Name,
 		proto:        myConfig.Proto,
-		ip:           net.ParseIP(myConfig.Ip),
 		port:         myConfig.Port,
 		spoof:        myConfig.Spoof,
 		log:          logFunc,
@@ -55,22 +53,43 @@ func New(globalConfig *config.Config, myConfig *config.ReceiverConfig, errFunc f
 
 func (r *Receiver) init() (err error) {
 
-	localInterfaceName := r.globalConfig.LocalV4Config.Interface
+	if r.config.IPvPref != 4 && r.config.IPvPref != 6 {
+		r.config.IPvPref = 6
+	}
+
+	// Handling this here instead of just letting Dial do the work because configs that use spoofing will force us to do this kind of look-up anyway, so we might as well keep everything consistent.
+
+	ips, err := net.LookupIP(r.config.Ip) // Can handle a hostname or an IP equally gracefully.
+
+	if err != nil {
+		return err
+	}
+
+	if len(ips) > 0 {
+		r.ip = ips[0] // Default.  If there's only one IP or no IPs match the preference, this won't change.
+		for _, ip := range ips {
+			if (r.config.IPvPref == 4 && ip.To4() != nil) || (r.config.IPvPref == 6 && ip.To4() == nil) {
+				r.ip = ip
+				break
+			}
+		}
+	} else {
+		return errors.New("No records found for host: " + r.config.Ip)
+	}
 
 	r.isIPv4 = true
 
 	remoteAddrString := r.ip.String()
 
+	localInterfaceName := r.globalConfig.LocalV4Config.Interface
+
 	if r.ip.To4() == nil {
 		r.isIPv4 = false
 		localInterfaceName = r.globalConfig.LocalV6Config.Interface
-		r.localGatewayHardwareAddr, err = net.ParseMAC(r.globalConfig.LocalV4Config.GatewayMAC)
-	} else {
-		if strings.Count(r.ip.String(), ":") > 0 {
-			return errors.New("Bad IPv4 Address found.  No colons or IPv6 formatting allowed.")
-		}
 		r.localGatewayHardwareAddr, err = net.ParseMAC(r.globalConfig.LocalV6Config.GatewayMAC)
 		remoteAddrString = "[" + remoteAddrString + "]"
+	} else {
+		r.localGatewayHardwareAddr, err = net.ParseMAC(r.globalConfig.LocalV4Config.GatewayMAC)
 	}
 
 	if err != nil {
@@ -112,9 +131,13 @@ func (r *Receiver) init() (err error) {
 
 		r.outputPath = fd
 
+		r.log(r.name + " - Raw socket ready.")
+
 	} else if r.proto == "udp" || r.proto == "tcp" {
 
-		conn, err := net.Dial(r.proto, remoteAddrString+":"+strconv.Itoa(r.port))
+		connString := remoteAddrString + ":" + strconv.Itoa(r.port)
+
+		conn, err := net.Dial(r.proto, connString)
 
 		if err != nil {
 			return err
@@ -122,9 +145,10 @@ func (r *Receiver) init() (err error) {
 
 		r.outputPath = conn
 
+		r.log(r.name + " - Dialed to " + connString)
 	}
 
-	r.log(r.name + " - receiver initialized.")
+	r.log(r.name + " - Receiver initialized.")
 
 	return nil
 }
@@ -136,7 +160,7 @@ func (r *Receiver) start() {
 
 	if r.proto == "udp" && r.spoof {
 
-		outFD := r.outputPath.(int) // This file descriptor is for a very raw socket.  The entire packet, including ethernet header must be constructed.
+		outFD := r.outputPath.(int) // This file descriptor is for a very raw socket.  The entire packet, including ethernet header, must be constructed.
 
 		buf := gopacket.NewSerializeBuffer()
 		opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}

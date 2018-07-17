@@ -122,7 +122,11 @@ func main() {
 			// TODO: Should switch to a map for lookups.
 			for i := 0; i < len(sources); i++ {
 				if bytes.Equal(remoteAddr.IP, sources[i].IP[12:16]) {
-					sources[i].AddMessage(data[:read], remoteAddr.IP, remoteAddr.Port)
+					err = sources[i].AddMessage(data[:read], remoteAddr.IP, remoteAddr.Port)
+
+					if err != nil {
+						recordError(err, errorChannel)
+					}
 				}
 			}
 		}
@@ -153,7 +157,11 @@ func main() {
 			// TODO: Should switch to a map for lookups.
 			for i := 0; i < len(sources); i++ {
 				if bytes.Equal(remoteAddr.IP, sources[i].IP) {
-					sources[i].AddMessage(data[:read], remoteAddr.IP, remoteAddr.Port)
+					err = sources[i].AddMessage(data[:read], remoteAddr.IP, remoteAddr.Port)
+
+					if err != nil {
+						recordError(err, errorChannel)
+					}
 				}
 			}
 		}

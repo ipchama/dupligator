@@ -14,11 +14,12 @@ type SourceConfig struct {
 }
 
 type ReceiverConfig struct {
-	Name  string `yaml:"name"`
-	Spoof bool   `yaml:"spoof"`
-	Proto string `yaml:"proto"`
-	Ip    string `yaml:"ip"`
-	Port  int    `yaml:"port"`
+	Name    string `yaml:"name"`
+	Spoof   bool   `yaml:"spoof"`
+	Proto   string `yaml:"proto"`
+	Ip      string `yaml:"ip"`
+	IPvPref int    `yaml:"ipv_pref"`
+	Port    int    `yaml:"port"`
 }
 
 type Config struct {

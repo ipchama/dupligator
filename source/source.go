@@ -39,7 +39,11 @@ func (s *Source) listen() {
 	for {
 		m = <-s.inputChannel
 		for _, r := range s.receivers {
-			r.AddMessage(m)
+			err := r.AddMessage(m)
+
+			if err != nil {
+				s.error(err)
+			}
 		}
 	}
 }

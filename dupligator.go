@@ -127,6 +127,7 @@ func main() {
 					if err != nil {
 						recordError(err, errorChannel)
 					}
+					break
 				}
 			}
 		}
@@ -148,7 +149,7 @@ func main() {
 		data := make([]byte, 4096)
 		for {
 			read, remoteAddr, err := conn6.ReadFromUDP(data)
-			recordLog("Read something in v6", logChannel)
+
 			if err != nil {
 				recordError(err, errorChannel)
 				break
@@ -162,6 +163,7 @@ func main() {
 					if err != nil {
 						recordError(err, errorChannel)
 					}
+					break
 				}
 			}
 		}

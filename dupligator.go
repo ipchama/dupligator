@@ -115,7 +115,31 @@ func main() {
 	/*
 		Start listeners
 	*/
+	err = runV4(config, &waitGroup, sourceMapV4)
 
+	if err != nil {
+		panic(err)
+	}
+
+	err = runV6(config, &waitGroup, sourceMapV6)
+
+	if err != nil {
+		panic(err)
+	}
+
+	/*
+		TODO:
+		Need to know if any read errors caused the primary read functions to return
+		If so, need to stop the rest of the go routines by calling stops on the sources and then stops on the receivers.
+		Sources should probably also check their receivers to make sure they are running before giving them messages just to
+		avoid a bunch of dumb memory usage from filled channels for receivers that stopped for some reason.
+	*/
+
+	waitGroup.Wait()
+
+}
+
+func runV4(config *Config, waitGroup *sync.WaitGroup, sourceMapV4 map[uint32]*source.Source) error {
 	// V4
 	conn4, err := net.ListenUDP("udp4", &net.UDPAddr{
 		IP:   net.ParseIP(config.LocalV4Config.Address),
@@ -123,7 +147,7 @@ func main() {
 	})
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	waitGroup.Add(1)
@@ -157,15 +181,16 @@ func main() {
 		}
 		waitGroup.Done()
 	}()
+}
 
-	// V6
+func runV6(config *Config, waitGroup *sync.WaitGroup, sourceMapV6 map[[16]byte]*source.Source) error {
 	conn6, err := net.ListenUDP("udp6", &net.UDPAddr{
 		IP:   net.ParseIP(config.LocalV6Config.Address),
 		Port: config.LocalV6Config.Port,
 	})
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	waitGroup.Add(1)
@@ -194,17 +219,6 @@ func main() {
 
 		waitGroup.Done()
 	}()
-
-	/*
-		TODO:
-		Need to know if any read errors caused the primary read functions to return
-		If so, need to stop the rest of the go routines by calling stops on the sources and then stops on the receivers.
-		Sources should probably also check their receivers to make sure they are running before giving them messages just to
-		avoid a bunch of dumb memory usage from filled channels for receivers that stopped for some reason.
-	*/
-
-	waitGroup.Wait()
-
 }
 
 func recordLog(str string, logChannel chan string) {

@@ -32,8 +32,6 @@ func New(globalConfig *config.Config, myConfig *config.SourceConfig, errFunc fun
 	return &s
 }
 
-// TODO: Need some condition on the for-loop and a Stop() method.
-
 func (s *Source) listen() {
 	var m *receiver.Message
 

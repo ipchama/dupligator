@@ -154,8 +154,6 @@ func (r *Receiver) init() (err error) {
 	return nil
 }
 
-// TODO: Need some condition on the for-loop and a Stop() method.
-
 func (r *Receiver) start() {
 	var m *Message
 
@@ -244,6 +242,11 @@ func (r *Receiver) start() {
 				r.error(err)
 			}
 		}
+
+		err := syscall.Close(outFD)
+		if err != nil {
+			r.error(err)
+		}
 	} else if r.proto == "tcp" || !r.spoof {
 
 		conn := r.outputPath.(net.Conn)
@@ -260,6 +263,11 @@ func (r *Receiver) start() {
 			if err != nil {
 				r.error(err)
 			}
+		}
+
+		err := conn.Close()
+		if err != nil {
+			r.error(err)
 		}
 	}
 }

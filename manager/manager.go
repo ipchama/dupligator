@@ -188,7 +188,13 @@ func (m *Manager) runV4() error {
 
 			if s, ok := m.sourceMapV4[i]; ok {
 
-				err = s.AddMessage(data[:read], remoteAddr.IP, remoteAddr.Port)
+				msg := &receiver.Message{
+					SourceAddress: remoteAddr.IP,
+					SourcePort:    remoteAddr.Port,
+					Payload:       data[:read],
+				}
+
+				err = s.AddMessage(msg)
 
 				if err != nil {
 					m.recordError(err)
@@ -227,7 +233,13 @@ func (m *Manager) runV6() error {
 			copy(v6Bytes[:], remoteAddr.IP)
 			if s, ok := m.sourceMapV6[v6Bytes]; ok {
 
-				err = s.AddMessage(data[:read], remoteAddr.IP, remoteAddr.Port)
+				msg := &receiver.Message{
+					SourceAddress: remoteAddr.IP,
+					SourcePort:    remoteAddr.Port,
+					Payload:       data[:read],
+				}
+
+				err = s.AddMessage(msg)
 
 				if err != nil {
 					m.recordError(err)
@@ -239,6 +251,32 @@ func (m *Manager) runV6() error {
 	}()
 
 	return nil
+}
+
+func (m *Manager) Stop() {
+
+	/*
+		Send stop message to sources and receivers.
+		Could construct things so that sources pass along the stop message to receivers, but the
+		idea is that receivers could be shared by many sources; in which case, multiple stop
+		messages would be sent to the same reciever.  Not the end of the world, just seems unnecessary
+		since we can just send messages to everyone here.
+	*/
+	stop := &receiver.Message{
+		Stop: true,
+	}
+
+	for _, s := range m.sourceMapV4 {
+		s.AddMessage(stop)
+	}
+
+	for _, s := range m.sourceMapV6 {
+		s.AddMessage(stop)
+	}
+
+	for _, r := range m.receiverMap {
+		r.AddMessage(stop)
+	}
 }
 
 func (m *Manager) recordLog(str string) {

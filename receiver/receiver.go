@@ -15,6 +15,7 @@ type Message struct {
 	SourceAddress net.IP
 	SourcePort    int
 	Payload       []byte
+	Stop          bool
 }
 
 type Receiver struct {
@@ -168,6 +169,9 @@ func (r *Receiver) start() {
 		for {
 
 			m = <-r.inputChannel
+			if m.Stop {
+				break
+			}
 
 			if r.isIPv4 {
 
@@ -248,6 +252,9 @@ func (r *Receiver) start() {
 
 		for {
 			m = <-r.inputChannel
+			if m.Stop {
+				break
+			}
 			_, err := conn.Write(m.Payload)
 
 			if err != nil {

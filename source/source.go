@@ -36,8 +36,15 @@ func New(globalConfig *config.Config, myConfig *config.SourceConfig, errFunc fun
 
 func (s *Source) listen() {
 	var m *receiver.Message
+
 	for {
 		m = <-s.inputChannel
+
+		// Break before sending to receivers.  The manager will handle stopping them.
+		if m.Stop {
+			break
+		}
+
 		for _, r := range s.receivers {
 			err := r.AddMessage(m)
 
@@ -66,13 +73,7 @@ func (s *Source) AddReceiver(r *receiver.Receiver) {
 	s.receivers = append(s.receivers, r)
 }
 
-func (s *Source) AddMessage(p []byte, sourceAddress net.IP, sourcePort int) error {
-
-	msg := &receiver.Message{
-		SourceAddress: sourceAddress,
-		SourcePort:    sourcePort,
-		Payload:       p,
-	}
+func (s *Source) AddMessage(msg *receiver.Message) error {
 
 	select {
 	case s.inputChannel <- msg:

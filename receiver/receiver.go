@@ -256,6 +256,7 @@ func (r *Receiver) start() {
 		for {
 			m = <-r.inputChannel
 			if m.Stop {
+				r.log(r.name + " - receiver stopping...") // This message might never make it out.
 				break
 			}
 			_, err := conn.Write(m.Payload)
@@ -284,6 +285,7 @@ func (r *Receiver) StartSending(wg *sync.WaitGroup) error {
 
 	go func() {
 		r.start()
+		r.log(r.name + " - receiver stopped.") // This message might never make it out.
 		wg.Done()
 	}()
 

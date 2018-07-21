@@ -40,6 +40,7 @@ func (s *Source) listen() {
 
 		// Break before sending to receivers.  The manager will handle stopping them.
 		if m.Stop {
+			s.log(s.name + " - source stopping...") // This message might never make it out.
 			break
 		}
 
@@ -59,6 +60,7 @@ func (s *Source) Listen(wg *sync.WaitGroup) error {
 
 	go func() {
 		s.listen()
+		s.log(s.name + " - source stopped.") // This message might never make it out.
 		wg.Done()
 	}()
 

@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 )
 
 type Manager struct {
@@ -20,8 +21,16 @@ type Manager struct {
 	sourceMapV4  map[uint32]*source.Source
 	sourceMapV6  map[[16]byte]*source.Source
 	receiverMap  map[string]*receiver.Receiver
-	logChannel   chan string
-	errorChannel chan error
+	v4Conn       net.Conn
+	v6Conn       net.Conn
+	logChannel   chan *LogMessage
+	errorChannel chan *LogMessage
+	stopping     uint32
+}
+
+type LogMessage struct {
+	Message string
+	Stop    bool
 }
 
 func New(globalConfig *config.Config) *Manager {
@@ -33,8 +42,8 @@ func New(globalConfig *config.Config) *Manager {
 
 		receiverMap: make(map[string]*receiver.Receiver),
 
-		logChannel:   make(chan string, 1000),
-		errorChannel: make(chan error, 1000),
+		logChannel:   make(chan *LogMessage, 1000),
+		errorChannel: make(chan *LogMessage, 1000),
 	}
 
 	return &m
@@ -80,28 +89,37 @@ func (m *Manager) Run() error {
 	// Start up the log channel reader
 	m.waitGroup.Add(1)
 	go func() {
-		var msg string
+		var msg *LogMessage
 		for {
 			msg = <-m.logChannel
-			log.Printf("INFO: %s", msg)
+
+			if msg.Stop {
+				break
+			}
+
+			log.Printf("INFO: %s", msg.Message)
 		}
 
-		m.waitGroup.Done() // TODO: Need some condition on the for-loop to make sure we can even hit this.
+		m.waitGroup.Done()
 	}()
 
 	// Start up the error channel reader
 	m.waitGroup.Add(1)
 	go func() {
-		var err error
+		var msg *LogMessage
 		for {
-			err = <-m.errorChannel
-			log.Printf("ERROR: %s", err.Error())
+			msg = <-m.errorChannel
+			if msg.Stop {
+				break
+			}
+
+			log.Printf("ERROR: %s", msg.Message)
 		}
-		m.waitGroup.Done() // TODO: Need some condition on the for-loop to make sure we can even hit this.
+		m.waitGroup.Done()
 	}()
 
 	/*
-		Start sources and recievers
+		Start sources and receivers
 	*/
 
 	for _, r := range m.receiverMap {
@@ -143,15 +161,6 @@ func (m *Manager) Run() error {
 		return err
 	}
 
-	/*
-		TODO:
-		Need to know if any read errors caused the primary read functions to return
-		If so, need to stop the rest of the go routines by calling stops on the sources and then stops on the receivers.
-		Sources should probably also check their receivers to make sure they are running before giving them messages just to
-		avoid a bunch of dumb memory usage from filled channels for receivers that stopped for some reason.
-	*/
-	m.waitGroup.Wait()
-
 	return nil
 }
 
@@ -166,6 +175,8 @@ func (m *Manager) runV4() error {
 		return err
 	}
 
+	m.v4Conn = conn4
+
 	m.waitGroup.Add(1)
 	go func() {
 
@@ -176,7 +187,10 @@ func (m *Manager) runV4() error {
 			read, remoteAddr, err := conn4.ReadFromUDP(data)
 
 			if err != nil {
-				m.recordError(err)
+				if atomic.LoadUint32(&m.stopping) == 0 { // Suppress errors that very likely occurred because the conn was closed by a call to Stop()
+					m.recordError(err)
+				}
+
 				break
 			}
 
@@ -217,6 +231,8 @@ func (m *Manager) runV6() error {
 		return err
 	}
 
+	m.v6Conn = conn6
+
 	m.waitGroup.Add(1)
 	go func() {
 		data := make([]byte, 4096)
@@ -226,7 +242,9 @@ func (m *Manager) runV6() error {
 			read, remoteAddr, err := conn6.ReadFromUDP(data)
 
 			if err != nil {
-				m.recordError(err)
+				if atomic.LoadUint32(&m.stopping) == 0 { // Suppress errors that very likely occurred because the conn was closed by a call to Stop()
+					m.recordError(err)
+				}
 				break
 			}
 
@@ -262,6 +280,19 @@ func (m *Manager) Stop() {
 		messages would be sent to the same reciever.  Not the end of the world, just seems unnecessary
 		since we can just send messages to everyone here.
 	*/
+
+	atomic.StoreUint32(&m.stopping, 1)
+
+	err := m.v4Conn.Close()
+	if err != nil {
+		m.recordError(err)
+	}
+
+	err = m.v6Conn.Close()
+	if err != nil {
+		m.recordError(err)
+	}
+
 	stop := &receiver.Message{
 		Stop: true,
 	}
@@ -277,18 +308,34 @@ func (m *Manager) Stop() {
 	for _, r := range m.receiverMap {
 		r.AddMessage(stop)
 	}
+
+	/*
+		Stop logging.
+	*/
+
+	m.logChannel <- &LogMessage{Stop: true}
+	m.errorChannel <- &LogMessage{Stop: true}
+
+	m.waitGroup.Wait()
 }
 
 func (m *Manager) recordLog(str string) {
+	msg := &LogMessage{
+		Message: str,
+	}
 	select {
-	case m.logChannel <- str:
+	case m.logChannel <- msg:
 	default:
 	}
 }
 
 func (m *Manager) recordError(err error) {
+	msg := &LogMessage{
+		Message: err.Error(),
+	}
+
 	select {
-	case m.errorChannel <- err:
+	case m.errorChannel <- msg:
 	default:
 	}
 }

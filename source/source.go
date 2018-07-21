@@ -32,12 +32,18 @@ func New(globalConfig *config.Config, myConfig *config.SourceConfig, errFunc fun
 	return &s
 }
 
-// TODO: Need some condition on the for-loop and a Stop() method.
-
 func (s *Source) listen() {
 	var m *receiver.Message
+
 	for {
 		m = <-s.inputChannel
+
+		// Break before sending to receivers.  The manager will handle stopping them.
+		if m.Stop {
+			s.log(s.name + " - source stopping...") // This message might never make it out.
+			break
+		}
+
 		for _, r := range s.receivers {
 			err := r.AddMessage(m)
 
@@ -54,6 +60,7 @@ func (s *Source) Listen(wg *sync.WaitGroup) error {
 
 	go func() {
 		s.listen()
+		s.log(s.name + " - source stopped.") // This message might never make it out.
 		wg.Done()
 	}()
 
@@ -66,13 +73,7 @@ func (s *Source) AddReceiver(r *receiver.Receiver) {
 	s.receivers = append(s.receivers, r)
 }
 
-func (s *Source) AddMessage(p []byte, sourceAddress net.IP, sourcePort int) error {
-
-	msg := &receiver.Message{
-		SourceAddress: sourceAddress,
-		SourcePort:    sourcePort,
-		Payload:       p,
-	}
+func (s *Source) AddMessage(msg *receiver.Message) error {
 
 	select {
 	case s.inputChannel <- msg:

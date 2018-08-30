@@ -121,7 +121,7 @@ func (r *Receiver) init() (err error) {
 		}
 
 		if !r.isIPv4 {
-			addr.Protocol = 0xbb61 // LSB ETH_P_IPV6 (0xdd68)
+			addr.Protocol = 0x86dd // LSB ETH_P_IPV6 (0xdd68)
 		}
 
 		err = syscall.Bind(fd, &addr)

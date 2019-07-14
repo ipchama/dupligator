@@ -36,9 +36,6 @@ func New(globalConfig *config.Config, myConfig *config.SourceConfig, errFunc fun
 	}
 
 	if myConfig.StickyBytesLength > 0 {
-		if myConfig.StickyBytesLength > 8 {
-			myConfig.StickyBytesLength = 8
-		}
 		s.myConfig.StickyBytesEnd = s.myConfig.StickyBytesStart + s.myConfig.StickyBytesLength
 		s.useStickyBytes = true
 	}
@@ -61,7 +58,6 @@ func (s *Source) listen() {
 		if s.myConfig.StickyBytesLength > 0 {
 
 			stickySum := hash(m.Payload[s.myConfig.StickyBytesStart:s.myConfig.StickyBytesEnd])
-			println(stickySum)
 
 			if err := s.receivers[stickySum%uint64(len(s.receivers))].AddMessage(m); err != nil {
 				s.error(err)

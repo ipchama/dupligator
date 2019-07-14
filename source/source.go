@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/ipchama/dupligator/config"
 	"github.com/ipchama/dupligator/receiver"
+	"hash/fnv"
 	"net"
 	"sync"
 )
@@ -15,6 +16,10 @@ type Source struct {
 
 	inputChannel chan *receiver.Message
 
+	useStickyBytes bool
+
+	myConfig *config.SourceConfig
+
 	error func(error)
 	log   func(string)
 }
@@ -23,10 +28,19 @@ func New(globalConfig *config.Config, myConfig *config.SourceConfig, errFunc fun
 
 	s := Source{
 		name:         myConfig.Name,
+		myConfig:     myConfig,
 		IP:           net.ParseIP(myConfig.SourceIP),
 		log:          logFunc,
 		error:        errFunc,
 		inputChannel: make(chan *receiver.Message, 10000),
+	}
+
+	if myConfig.StickyBytesLength > 0 {
+		if myConfig.StickyBytesLength > 8 {
+			myConfig.StickyBytesLength = 8
+		}
+		s.myConfig.StickyBytesEnd = s.myConfig.StickyBytesStart + s.myConfig.StickyBytesLength
+		s.useStickyBytes = true
 	}
 
 	return &s
@@ -44,14 +58,31 @@ func (s *Source) listen() {
 			break
 		}
 
-		for _, r := range s.receivers {
-			err := r.AddMessage(m)
+		if s.myConfig.StickyBytesLength > 0 {
 
-			if err != nil {
+			stickySum := hash(m.Payload[s.myConfig.StickyBytesStart:s.myConfig.StickyBytesEnd])
+			println(stickySum)
+
+			if err := s.receivers[stickySum%uint64(len(s.receivers))].AddMessage(m); err != nil {
 				s.error(err)
+			}
+		} else {
+
+			for _, r := range s.receivers {
+				err := r.AddMessage(m)
+
+				if err != nil {
+					s.error(err)
+				}
 			}
 		}
 	}
+}
+
+func hash(b []byte) uint64 {
+	h := fnv.New64a()
+	h.Write(b)
+	return h.Sum64()
 }
 
 func (s *Source) Listen(wg *sync.WaitGroup) error {

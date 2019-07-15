@@ -16,8 +16,6 @@ type Source struct {
 
 	inputChannel chan *receiver.Message
 
-	useStickyBytes bool
-
 	myConfig *config.SourceConfig
 
 	error func(error)
@@ -37,7 +35,6 @@ func New(globalConfig *config.Config, myConfig *config.SourceConfig, errFunc fun
 
 	if myConfig.StickyBytesLength > 0 {
 		s.myConfig.StickyBytesEnd = s.myConfig.StickyBytesStart + s.myConfig.StickyBytesLength
-		s.useStickyBytes = true
 	}
 
 	return &s

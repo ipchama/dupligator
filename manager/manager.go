@@ -19,7 +19,9 @@ type Manager struct {
 		benchmarks showed these key choices as being more than 8x faster than using IP.String() for keys.
 	*/
 	sourceMapV4  map[uint32]*source.Source
+	sourceV4All  *source.Source
 	sourceMapV6  map[[16]byte]*source.Source
+	sourceV6All  *source.Source
 	receiverMap  map[string]*receiver.Receiver
 	v4Conn       net.Conn
 	v6Conn       net.Conn
@@ -39,6 +41,9 @@ func New(globalConfig *config.Config) *Manager {
 		config:      globalConfig,
 		sourceMapV4: make(map[uint32]*source.Source),
 		sourceMapV6: make(map[[16]byte]*source.Source),
+
+		sourceV4All: nil,
+		sourceV6All: nil,
 
 		receiverMap: make(map[string]*receiver.Receiver),
 
@@ -60,6 +65,17 @@ func (m *Manager) Init() error {
 	// Load and init sources
 	for i := 0; i < len(m.config.Sources); i++ {
 		newSource := source.New(m.config, &m.config.Sources[i], m.recordError, m.recordLog)
+
+		if m.config.Sources[i].SourceIP == "0.0.0.0" {
+			m.recordLog("Adding IPv4 'any' source.")
+			m.sourceV4All = newSource
+
+		} else if m.config.Sources[i].SourceIP == "::/0" {
+			m.recordLog("Adding IPv6 'any' source.")
+			m.sourceV6All = newSource
+		}
+
+		/* Even for "any" sources, we can still let them get added to the map so that the init and deinit can be handled the same for them as the rest. */
 
 		if newSource.IP.To4() != nil {
 
@@ -200,6 +216,20 @@ func (m *Manager) runV4() error {
 				i = binary.BigEndian.Uint32(remoteAddr.IP)
 			}
 
+			if m.sourceV4All != nil {
+				msg := &receiver.Message{
+					SourceAddress: remoteAddr.IP,
+					SourcePort:    remoteAddr.Port,
+					Payload:       data[:read],
+				}
+
+				err = m.sourceV4All.AddMessage(msg)
+
+				if err != nil {
+					m.recordError(err)
+				}
+			}
+
 			if s, ok := m.sourceMapV4[i]; ok {
 
 				msg := &receiver.Message{
@@ -246,6 +276,18 @@ func (m *Manager) runV6() error {
 					m.recordError(err)
 				}
 				break
+			}
+
+			if m.sourceV6All != nil {
+				msg := &receiver.Message{
+					SourceAddress: remoteAddr.IP,
+					SourcePort:    remoteAddr.Port,
+					Payload:       data[:read],
+				}
+
+				if err = m.sourceV6All.AddMessage(msg); err != nil {
+					m.recordError(err)
+				}
 			}
 
 			copy(v6Bytes[:], remoteAddr.IP)

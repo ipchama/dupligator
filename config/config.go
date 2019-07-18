@@ -8,12 +8,13 @@ type LocalConfig struct {
 }
 
 type SourceConfig struct {
-	Name              string `yaml:"name"`
-	SourceIP          string `yaml:"source_ip"`
-	StickyBytesStart  int    `yaml:"sticky_bytes_start"`
-	StickyBytesLength int    `yaml:"sticky_bytes_length"`
-	StickyBytesEnd    int
-	Receivers         []string `yaml:"receivers"`
+	Name                string `yaml:"name"`
+	SourceIP            string `yaml:"source_ip"`
+	StickyBytesStart    int    `yaml:"sticky_bytes_start"`
+	StickyBytesLength   int    `yaml:"sticky_bytes_length"`
+	StickyBytesEnd      int
+	DefaultCatchallOnly bool     `yaml:"default_only"`
+	Receivers           []string `yaml:"receivers"`
 }
 
 type ReceiverConfig struct {

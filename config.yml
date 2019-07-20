@@ -1,12 +1,12 @@
 local_v4:
     interface: wlan1
-    address: 192.168.1.143
-    gateway_mac: '48:f8x:x:XX::X'
+    address: 192.168.1.123 # '*' can be used to listen on all addresses
+    gateway_mac: '48:xx:xx:f7:xx:29'
     port: 6704
 local_v6:  
     interface: wlan1
-    address: 'FFFF:FFFF::1'
-    gateway_mac: '48:f8x:x:XX::X'
+    address: 'fe80::8aa3:426c:fcb0:2612:a56f:507d' # '*' can be used to listen on all addresses
+    gateway_mac: '48:xx:xx:f7:xx:29'
     port: 6704
 
 # IP addresses below can be v4 or v6.
@@ -16,13 +16,36 @@ local_v6:
 
 sources:
     - name: brk01
-      source_ip: 192.168.122.229
+      source_ip: 0.0.0.0 # 0.0.0.0 can be used to accept from any/all IPv4 sources, or ::/0 can be used to accept from any/all IPv6 sources, and default_catchall_only can be used to only apply this to packets that have not already matched a different source config.
+      default_catchall_only: True
       receivers:
         - intake01
 
+    - name: dhammer
+      source_ip: 192.168.231.128
+      sticky_bytes_start: 13 # sticky_bytes_* options allow you to specify a chunk of bytes from a UDP *payload* to hash for stickiness.  For example, the bytes that hold the transaction ID of a DHCP request. (0-indexed)
+      sticky_bytes_length: 4
+      receivers:
+        - k01
+        - k02
+
 receivers:
     - name: intake01
-      spoof: False
-      proto: tcp
-      ip: 192.168.5.5
+      spoof: True
+      proto: udp
+      ip: 192.168.145.154
       port: 3307
+
+    - name: k01
+      spoof: False
+      proto: udp
+      ipv_pref: 4 # When passing a hostname instead of an IP, ipv_pref can be used to prefer one IP version.  If the preferred version is not found, the available one will be selected.
+      ip: some.example.com # NOTE: "ip" will changed to "host" in a later update.
+      port: 6700
+      
+    - name: k02
+      spoof: True
+      preserve_udp_port: True # When spoofing, preserve_udp_port can be used to send the outgoing packets with the same source port as the incoming packet that's being replicated.
+      proto: udp
+      ip: 192.168.189.75
+      port: 6700         

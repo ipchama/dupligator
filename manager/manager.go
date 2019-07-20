@@ -198,6 +198,8 @@ func (m *Manager) runV4() error {
 
 		data := make([]byte, 4096)
 		var i uint32
+		var ok bool
+		var s *source.Source
 
 		for {
 			read, remoteAddr, err := conn4.ReadFromUDP(data)
@@ -216,21 +218,7 @@ func (m *Manager) runV4() error {
 				i = binary.BigEndian.Uint32(remoteAddr.IP)
 			}
 
-			if m.sourceV4All != nil {
-				msg := &receiver.Message{
-					SourceAddress: remoteAddr.IP,
-					SourcePort:    remoteAddr.Port,
-					Payload:       data[:read],
-				}
-
-				err = m.sourceV4All.AddMessage(msg)
-
-				if err != nil {
-					m.recordError(err)
-				}
-			}
-
-			if s, ok := m.sourceMapV4[i]; ok {
+			if s, ok = m.sourceMapV4[i]; ok {
 
 				msg := &receiver.Message{
 					SourceAddress: remoteAddr.IP,
@@ -239,6 +227,20 @@ func (m *Manager) runV4() error {
 				}
 
 				err = s.AddMessage(msg)
+
+				if err != nil {
+					m.recordError(err)
+				}
+			}
+
+			if m.sourceV4All != nil && (!ok || !m.sourceV4All.Config.DefaultCatchallOnly) {
+				msg := &receiver.Message{
+					SourceAddress: remoteAddr.IP,
+					SourcePort:    remoteAddr.Port,
+					Payload:       data[:read],
+				}
+
+				err = m.sourceV4All.AddMessage(msg)
 
 				if err != nil {
 					m.recordError(err)
@@ -268,6 +270,9 @@ func (m *Manager) runV6() error {
 		data := make([]byte, 4096)
 		var v6Bytes [16]byte
 
+		var ok bool
+		var s *source.Source
+
 		for {
 			read, remoteAddr, err := conn6.ReadFromUDP(data)
 
@@ -278,20 +283,8 @@ func (m *Manager) runV6() error {
 				break
 			}
 
-			if m.sourceV6All != nil {
-				msg := &receiver.Message{
-					SourceAddress: remoteAddr.IP,
-					SourcePort:    remoteAddr.Port,
-					Payload:       data[:read],
-				}
-
-				if err = m.sourceV6All.AddMessage(msg); err != nil {
-					m.recordError(err)
-				}
-			}
-
 			copy(v6Bytes[:], remoteAddr.IP)
-			if s, ok := m.sourceMapV6[v6Bytes]; ok {
+			if s, ok = m.sourceMapV6[v6Bytes]; ok {
 
 				msg := &receiver.Message{
 					SourceAddress: remoteAddr.IP,
@@ -305,6 +298,19 @@ func (m *Manager) runV6() error {
 					m.recordError(err)
 				}
 			}
+
+			if m.sourceV6All != nil && (!ok || !m.sourceV6All.Config.DefaultCatchallOnly) {
+				msg := &receiver.Message{
+					SourceAddress: remoteAddr.IP,
+					SourcePort:    remoteAddr.Port,
+					Payload:       data[:read],
+				}
+
+				if err = m.sourceV6All.AddMessage(msg); err != nil {
+					m.recordError(err)
+				}
+			}
+
 		}
 
 		m.waitGroup.Done()

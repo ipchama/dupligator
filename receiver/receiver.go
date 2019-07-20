@@ -164,6 +164,8 @@ func (r *Receiver) start() {
 		buf := gopacket.NewSerializeBuffer()
 		opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
 
+		srcPort := r.globalConfig.LocalV4Config.Port
+
 		for {
 
 			m = <-r.inputChannel
@@ -188,8 +190,12 @@ func (r *Receiver) start() {
 					DstIP:    r.ip,
 				}
 
+				if r.config.PreserveUdpPort {
+					srcPort = m.SourcePort
+				}
+
 				udpLayer := &layers.UDP{
-					SrcPort: layers.UDPPort(r.globalConfig.LocalV4Config.Port),
+					SrcPort: layers.UDPPort(srcPort),
 					DstPort: layers.UDPPort(r.port),
 				}
 
@@ -216,8 +222,13 @@ func (r *Receiver) start() {
 					SrcIP:    m.SourceAddress,
 					DstIP:    r.ip,
 				}
+
+				if r.config.PreserveUdpPort {
+					srcPort = m.SourcePort
+				}
+
 				udpLayer := &layers.UDP{
-					SrcPort: layers.UDPPort(r.globalConfig.LocalV6Config.Port),
+					SrcPort: layers.UDPPort(srcPort),
 					DstPort: layers.UDPPort(r.port),
 				}
 

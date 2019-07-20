@@ -16,25 +16,25 @@ type Source struct {
 
 	inputChannel chan *receiver.Message
 
-	myConfig *config.SourceConfig
+	Config *config.SourceConfig
 
 	error func(error)
 	log   func(string)
 }
 
-func New(globalConfig *config.Config, myConfig *config.SourceConfig, errFunc func(error), logFunc func(string)) *Source {
+func New(globalConfig *config.Config, Config *config.SourceConfig, errFunc func(error), logFunc func(string)) *Source {
 
 	s := Source{
-		name:         myConfig.Name,
-		myConfig:     myConfig,
-		IP:           net.ParseIP(myConfig.SourceIP),
+		name:         Config.Name,
+		Config:       Config,
+		IP:           net.ParseIP(Config.SourceIP),
 		log:          logFunc,
 		error:        errFunc,
 		inputChannel: make(chan *receiver.Message, 10000),
 	}
 
-	if myConfig.StickyBytesLength > 0 {
-		s.myConfig.StickyBytesEnd = s.myConfig.StickyBytesStart + s.myConfig.StickyBytesLength
+	if Config.StickyBytesLength > 0 {
+		s.Config.StickyBytesEnd = s.Config.StickyBytesStart + s.Config.StickyBytesLength
 	}
 
 	return &s
@@ -52,9 +52,9 @@ func (s *Source) listen() {
 			break
 		}
 
-		if s.myConfig.StickyBytesLength > 0 {
+		if s.Config.StickyBytesLength > 0 {
 
-			stickySum := hash(m.Payload[s.myConfig.StickyBytesStart:s.myConfig.StickyBytesEnd])
+			stickySum := hash(m.Payload[s.Config.StickyBytesStart:s.Config.StickyBytesEnd])
 
 			if err := s.receivers[stickySum%uint64(len(s.receivers))].AddMessage(m); err != nil {
 				s.error(err)

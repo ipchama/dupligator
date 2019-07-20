@@ -8,21 +8,23 @@ type LocalConfig struct {
 }
 
 type SourceConfig struct {
-	Name              string `yaml:"name"`
-	SourceIP          string `yaml:"source_ip"`
-	StickyBytesStart  int    `yaml:"sticky_bytes_start"`
-	StickyBytesLength int    `yaml:"sticky_bytes_length"`
-	StickyBytesEnd    int
-	Receivers         []string `yaml:"receivers"`
+	Name                string `yaml:"name"`
+	SourceIP            string `yaml:"source_ip"`
+	StickyBytesStart    int    `yaml:"sticky_bytes_start"`
+	StickyBytesLength   int    `yaml:"sticky_bytes_length"`
+	StickyBytesEnd      int
+	DefaultCatchallOnly bool     `yaml:"default_catchall_only"`
+	Receivers           []string `yaml:"receivers"`
 }
 
 type ReceiverConfig struct {
-	Name    string `yaml:"name"`
-	Spoof   bool   `yaml:"spoof"`
-	Proto   string `yaml:"proto"`
-	Ip      string `yaml:"ip"`
-	IPvPref int    `yaml:"ipv_pref"`
-	Port    int    `yaml:"port"`
+	Name            string `yaml:"name"`
+	Spoof           bool   `yaml:"spoof"`
+	PreserveUdpPort bool   `yaml:"preserve_udp_port"`
+	Proto           string `yaml:"proto"`
+	Ip              string `yaml:"ip"`
+	IPvPref         int    `yaml:"ipv_pref"`
+	Port            int    `yaml:"port"`
 }
 
 type Config struct {

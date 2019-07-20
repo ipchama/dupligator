@@ -13,7 +13,7 @@ type SourceConfig struct {
 	StickyBytesStart    int    `yaml:"sticky_bytes_start"`
 	StickyBytesLength   int    `yaml:"sticky_bytes_length"`
 	StickyBytesEnd      int
-	DefaultCatchallOnly bool     `yaml:"default_only"`
+	DefaultCatchallOnly bool     `yaml:"default_catchall_only"`
 	Receivers           []string `yaml:"receivers"`
 }
 

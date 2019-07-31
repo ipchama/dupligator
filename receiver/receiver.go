@@ -25,6 +25,7 @@ type Receiver struct {
 	ip                       net.IP
 	isIPv4                   bool
 	localGatewayHardwareAddr net.HardwareAddr
+	localIp                  net.IP
 	port                     int
 	proto                    string
 	spoof                    bool
@@ -97,7 +98,17 @@ func (r *Receiver) init() (err error) {
 		return err
 	}
 
-	if r.proto == "udp" && r.spoof {
+	if r.proto == "udp" {
+
+		if !r.spoof { // Silly way to auto-select a local IP for use late while constructing UDP packets so the same port can be used for multiple receivers.
+			connString := remoteAddrString + ":" + strconv.Itoa(r.port)
+
+			if conn, err := net.Dial(r.proto, connString); err != nil {
+				return err
+			} else {
+				r.localIp = conn.LocalAddr().(*net.UDPAddr).IP
+			}
+		}
 
 		r.localInterface, err = net.InterfaceByName(localInterfaceName)
 
@@ -134,19 +145,17 @@ func (r *Receiver) init() (err error) {
 
 		r.log(r.name + " - Raw socket ready.")
 
-	} else if r.proto == "udp" || r.proto == "tcp" {
-
+	} else if r.proto == "tcp" {
 		connString := remoteAddrString + ":" + strconv.Itoa(r.port)
 
-		conn, err := net.Dial(r.proto, connString)
-
-		if err != nil {
+		if conn, err := net.Dial(r.proto, connString); err != nil {
 			return err
+		} else {
+			r.outputPath = conn
 		}
 
-		r.outputPath = conn
-
-		r.log(r.name + " - Dialed to " + connString)
+	} else {
+		return errors.New("Failed to choose a valid proto for " + r.name)
 	}
 
 	r.log(r.name + " - Receiver initialized.")
@@ -157,7 +166,7 @@ func (r *Receiver) init() (err error) {
 func (r *Receiver) start() {
 	var m *Message
 
-	if r.proto == "udp" && r.spoof {
+	if r.proto == "udp" {
 
 		outFD := r.outputPath.(int) // This file descriptor is for a very raw socket.  The entire packet, including ethernet header, must be constructed.
 
@@ -182,11 +191,15 @@ func (r *Receiver) start() {
 					Length:       0,
 				}
 
+				if r.config.Spoof {
+					r.localIp = m.SourceAddress
+				}
+
 				ipLayer := &layers.IPv4{
 					Version:  4, // IPv4
 					TTL:      64,
 					Protocol: 17, // UDP
-					SrcIP:    m.SourceAddress,
+					SrcIP:    r.localIp,
 					DstIP:    r.ip,
 				}
 
@@ -216,10 +229,14 @@ func (r *Receiver) start() {
 					Length:       0,
 				}
 
+				if r.config.Spoof {
+					r.localIp = m.SourceAddress
+				}
+
 				ipLayer := &layers.IPv6{
 					Version:  6, // IPv6
 					HopLimit: 64,
-					SrcIP:    m.SourceAddress,
+					SrcIP:    r.localIp,
 					DstIP:    r.ip,
 				}
 
@@ -258,7 +275,7 @@ func (r *Receiver) start() {
 		if err != nil {
 			r.error(err)
 		}
-	} else if r.proto == "tcp" || !r.spoof {
+	} else if r.proto == "tcp" {
 
 		conn := r.outputPath.(net.Conn)
 

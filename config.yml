@@ -45,7 +45,7 @@ receivers:
       
     - name: k02
       spoof: True
-      preserve_udp_port: True # When spoofing, preserve_udp_port can be used to send the outgoing packets with the same source port as the incoming packet that's being replicated.
+      preserve_udp_port: True # preserve_udp_port can be used to send the outgoing packets with the same source port as the incoming packet that's being replicated.
       proto: udp
       ip: 192.168.189.75
       port: 6700         

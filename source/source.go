@@ -41,17 +41,10 @@ func New(globalConfig *config.Config, Config *config.SourceConfig, errFunc func(
 }
 
 func (s *Source) listen() {
-	var m *receiver.Message
 
-	for {
-		m = <-s.inputChannel
+	m, ok := <-s.inputChannel
 
-		// Break before sending to receivers.  The manager will handle stopping them.
-		if m.Stop {
-			s.log(s.name + " - source stopping...") // This message might never make it out.
-			break
-		}
-
+	for ok {
 		if s.Config.StickyBytesLength > 0 {
 
 			stickySum := hash(m.Payload[s.Config.StickyBytesStart:s.Config.StickyBytesEnd])
@@ -69,6 +62,8 @@ func (s *Source) listen() {
 				}
 			}
 		}
+
+		m, ok = <-s.inputChannel
 	}
 }
 
@@ -106,4 +101,8 @@ func (s *Source) AddMessage(msg *receiver.Message) error {
 	}
 
 	return nil
+}
+
+func (s *Source) Stop() {
+	close(s.inputChannel)
 }

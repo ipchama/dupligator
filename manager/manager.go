@@ -105,15 +105,11 @@ func (m *Manager) Run() error {
 	// Start up the log channel reader
 	m.waitGroup.Add(1)
 	go func() {
-		var msg *LogMessage
-		for {
-			msg = <-m.logChannel
+		msg, ok := <-m.logChannel
 
-			if msg.Stop {
-				break
-			}
-
+		for ok {
 			log.Printf("INFO: %s", msg.Message)
+			msg, ok = <-m.logChannel
 		}
 
 		m.waitGroup.Done()
@@ -122,14 +118,10 @@ func (m *Manager) Run() error {
 	// Start up the error channel reader
 	m.waitGroup.Add(1)
 	go func() {
-		var msg *LogMessage
-		for {
-			msg = <-m.errorChannel
-			if msg.Stop {
-				break
-			}
-
+		msg, ok := <-m.errorChannel
+		for ok {
 			log.Printf("ERROR: %s", msg.Message)
+			msg, ok = <-m.errorChannel
 		}
 		m.waitGroup.Done()
 	}()
@@ -341,28 +333,24 @@ func (m *Manager) Stop() {
 		m.recordError(err)
 	}
 
-	stop := &receiver.Message{
-		Stop: true,
-	}
-
 	for _, s := range m.sourceMapV4 {
-		s.AddMessage(stop)
+		s.Stop()
 	}
 
 	for _, s := range m.sourceMapV6 {
-		s.AddMessage(stop)
+		s.Stop()
 	}
 
 	for _, r := range m.receiverMap {
-		r.AddMessage(stop)
+		r.Stop()
 	}
 
 	/*
 		Stop logging.
 	*/
 
-	m.logChannel <- &LogMessage{Stop: true}
-	m.errorChannel <- &LogMessage{Stop: true}
+	close(m.logChannel)
+	close(m.errorChannel)
 
 	m.waitGroup.Wait()
 }

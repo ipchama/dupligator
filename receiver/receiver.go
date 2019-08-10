@@ -15,7 +15,6 @@ type Message struct {
 	SourceAddress net.IP
 	SourcePort    int
 	Payload       []byte
-	Stop          bool
 }
 
 type Receiver struct {
@@ -164,8 +163,6 @@ func (r *Receiver) init() (err error) {
 }
 
 func (r *Receiver) start() {
-	var m *Message
-
 	if r.proto == "udp" {
 
 		outFD := r.outputPath.(int) // This file descriptor is for a very raw socket.  The entire packet, including ethernet header, must be constructed.
@@ -175,12 +172,9 @@ func (r *Receiver) start() {
 
 		srcPort := r.globalConfig.LocalV4Config.Port
 
-		for {
+		m, ok := <-r.inputChannel
 
-			m = <-r.inputChannel
-			if m.Stop {
-				break
-			}
+		for ok {
 
 			if r.isIPv4 {
 
@@ -269,6 +263,8 @@ func (r *Receiver) start() {
 			if err != nil {
 				r.error(err)
 			}
+
+			m, ok = <-r.inputChannel
 		}
 
 		err := syscall.Close(outFD)
@@ -279,19 +275,16 @@ func (r *Receiver) start() {
 
 		conn := r.outputPath.(net.Conn)
 
-		var m *Message
+		m, ok := <-r.inputChannel
 
-		for {
-			m = <-r.inputChannel
-			if m.Stop {
-				r.log(r.name + " - receiver stopping...") // This message might never make it out.
-				break
-			}
+		for ok {
 			_, err := conn.Write(m.Payload)
 
 			if err != nil {
 				r.error(err)
 			}
+
+			m, ok = <-r.inputChannel
 		}
 
 		err := conn.Close()
@@ -318,6 +311,10 @@ func (r *Receiver) StartSending(wg *sync.WaitGroup) error {
 	}()
 
 	return nil
+}
+
+func (r *Receiver) Stop() {
+	close(r.inputChannel)
 }
 
 func (r *Receiver) AddMessage(msg *Message) error {

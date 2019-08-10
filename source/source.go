@@ -20,6 +20,8 @@ type Source struct {
 
 	error func(error)
 	log   func(string)
+
+	done chan struct{}
 }
 
 func New(globalConfig *config.Config, Config *config.SourceConfig, errFunc func(error), logFunc func(string)) *Source {
@@ -31,6 +33,7 @@ func New(globalConfig *config.Config, Config *config.SourceConfig, errFunc func(
 		log:          logFunc,
 		error:        errFunc,
 		inputChannel: make(chan *receiver.Message, 10000),
+		done:         make(chan struct{}),
 	}
 
 	if Config.StickyBytesLength > 0 {
@@ -41,17 +44,10 @@ func New(globalConfig *config.Config, Config *config.SourceConfig, errFunc func(
 }
 
 func (s *Source) listen() {
-	var m *receiver.Message
 
-	for {
-		m = <-s.inputChannel
+	m, ok := <-s.inputChannel
 
-		// Break before sending to receivers.  The manager will handle stopping them.
-		if m.Stop {
-			s.log(s.name + " - source stopping...") // This message might never make it out.
-			break
-		}
-
+	for ok {
 		if s.Config.StickyBytesLength > 0 {
 
 			stickySum := hash(m.Payload[s.Config.StickyBytesStart:s.Config.StickyBytesEnd])
@@ -69,6 +65,8 @@ func (s *Source) listen() {
 				}
 			}
 		}
+
+		m, ok = <-s.inputChannel
 	}
 }
 
@@ -85,6 +83,7 @@ func (s *Source) Listen(wg *sync.WaitGroup) error {
 	go func() {
 		s.listen()
 		s.log(s.name + " - source stopped.") // This message might never make it out.
+		s.done <- struct{}{}
 		wg.Done()
 	}()
 
@@ -106,4 +105,9 @@ func (s *Source) AddMessage(msg *receiver.Message) error {
 	}
 
 	return nil
+}
+
+func (s *Source) Stop() {
+	close(s.inputChannel)
+	<-s.done
 }

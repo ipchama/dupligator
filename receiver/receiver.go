@@ -15,7 +15,6 @@ type Message struct {
 	SourceAddress net.IP
 	SourcePort    int
 	Payload       []byte
-	Stop          bool
 }
 
 type Receiver struct {
@@ -25,6 +24,7 @@ type Receiver struct {
 	ip                       net.IP
 	isIPv4                   bool
 	localGatewayHardwareAddr net.HardwareAddr
+	localIp                  net.IP
 	port                     int
 	proto                    string
 	spoof                    bool
@@ -33,6 +33,7 @@ type Receiver struct {
 	localInterface           *net.Interface
 	inputChannel             chan *Message
 	outputPath               interface{}
+	done                     chan struct{}
 }
 
 func New(globalConfig *config.Config, myConfig *config.ReceiverConfig, errFunc func(error), logFunc func(string)) *Receiver {
@@ -47,6 +48,7 @@ func New(globalConfig *config.Config, myConfig *config.ReceiverConfig, errFunc f
 		log:          logFunc,
 		error:        errFunc,
 		inputChannel: make(chan *Message, 10000),
+		done:         make(chan struct{}),
 	}
 
 	return &r
@@ -97,7 +99,17 @@ func (r *Receiver) init() (err error) {
 		return err
 	}
 
-	if r.proto == "udp" && r.spoof {
+	if r.proto == "udp" {
+
+		if !r.spoof { // Silly way to auto-select a local IP for use late while constructing UDP packets so the same port can be used for multiple receivers.
+			connString := remoteAddrString + ":" + strconv.Itoa(r.port)
+
+			if conn, err := net.Dial(r.proto, connString); err != nil {
+				return err
+			} else {
+				r.localIp = conn.LocalAddr().(*net.UDPAddr).IP
+			}
+		}
 
 		r.localInterface, err = net.InterfaceByName(localInterfaceName)
 
@@ -134,19 +146,17 @@ func (r *Receiver) init() (err error) {
 
 		r.log(r.name + " - Raw socket ready.")
 
-	} else if r.proto == "udp" || r.proto == "tcp" {
-
+	} else if r.proto == "tcp" {
 		connString := remoteAddrString + ":" + strconv.Itoa(r.port)
 
-		conn, err := net.Dial(r.proto, connString)
-
-		if err != nil {
+		if conn, err := net.Dial(r.proto, connString); err != nil {
 			return err
+		} else {
+			r.outputPath = conn
 		}
 
-		r.outputPath = conn
-
-		r.log(r.name + " - Dialed to " + connString)
+	} else {
+		return errors.New("Failed to choose a valid proto for " + r.name)
 	}
 
 	r.log(r.name + " - Receiver initialized.")
@@ -155,9 +165,7 @@ func (r *Receiver) init() (err error) {
 }
 
 func (r *Receiver) start() {
-	var m *Message
-
-	if r.proto == "udp" && r.spoof {
+	if r.proto == "udp" {
 
 		outFD := r.outputPath.(int) // This file descriptor is for a very raw socket.  The entire packet, including ethernet header, must be constructed.
 
@@ -166,12 +174,9 @@ func (r *Receiver) start() {
 
 		srcPort := r.globalConfig.LocalV4Config.Port
 
-		for {
+		m, ok := <-r.inputChannel
 
-			m = <-r.inputChannel
-			if m.Stop {
-				break
-			}
+		for ok {
 
 			if r.isIPv4 {
 
@@ -182,11 +187,15 @@ func (r *Receiver) start() {
 					Length:       0,
 				}
 
+				if r.config.Spoof {
+					r.localIp = m.SourceAddress
+				}
+
 				ipLayer := &layers.IPv4{
 					Version:  4, // IPv4
 					TTL:      64,
 					Protocol: 17, // UDP
-					SrcIP:    m.SourceAddress,
+					SrcIP:    r.localIp,
 					DstIP:    r.ip,
 				}
 
@@ -216,10 +225,14 @@ func (r *Receiver) start() {
 					Length:       0,
 				}
 
+				if r.config.Spoof {
+					r.localIp = m.SourceAddress
+				}
+
 				ipLayer := &layers.IPv6{
 					Version:  6, // IPv6
 					HopLimit: 64,
-					SrcIP:    m.SourceAddress,
+					SrcIP:    r.localIp,
 					DstIP:    r.ip,
 				}
 
@@ -252,29 +265,28 @@ func (r *Receiver) start() {
 			if err != nil {
 				r.error(err)
 			}
+
+			m, ok = <-r.inputChannel
 		}
 
 		err := syscall.Close(outFD)
 		if err != nil {
 			r.error(err)
 		}
-	} else if r.proto == "tcp" || !r.spoof {
+	} else if r.proto == "tcp" {
 
 		conn := r.outputPath.(net.Conn)
 
-		var m *Message
+		m, ok := <-r.inputChannel
 
-		for {
-			m = <-r.inputChannel
-			if m.Stop {
-				r.log(r.name + " - receiver stopping...") // This message might never make it out.
-				break
-			}
+		for ok {
 			_, err := conn.Write(m.Payload)
 
 			if err != nil {
 				r.error(err)
 			}
+
+			m, ok = <-r.inputChannel
 		}
 
 		err := conn.Close()
@@ -296,11 +308,17 @@ func (r *Receiver) StartSending(wg *sync.WaitGroup) error {
 
 	go func() {
 		r.start()
-		r.log(r.name + " - receiver stopped.") // This message might never make it out.
+		r.log(r.name + " - receiver stopped.")
+		r.done <- struct{}{}
 		wg.Done()
 	}()
 
 	return nil
+}
+
+func (r *Receiver) Stop() {
+	close(r.inputChannel)
+	<-r.done
 }
 
 func (r *Receiver) AddMessage(msg *Message) error {

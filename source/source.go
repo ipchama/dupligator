@@ -20,6 +20,8 @@ type Source struct {
 
 	error func(error)
 	log   func(string)
+
+	done chan struct{}
 }
 
 func New(globalConfig *config.Config, Config *config.SourceConfig, errFunc func(error), logFunc func(string)) *Source {
@@ -31,6 +33,7 @@ func New(globalConfig *config.Config, Config *config.SourceConfig, errFunc func(
 		log:          logFunc,
 		error:        errFunc,
 		inputChannel: make(chan *receiver.Message, 10000),
+		done:         make(chan struct{}),
 	}
 
 	if Config.StickyBytesLength > 0 {
@@ -80,6 +83,7 @@ func (s *Source) Listen(wg *sync.WaitGroup) error {
 	go func() {
 		s.listen()
 		s.log(s.name + " - source stopped.") // This message might never make it out.
+		s.done <- struct{}{}
 		wg.Done()
 	}()
 
@@ -105,4 +109,5 @@ func (s *Source) AddMessage(msg *receiver.Message) error {
 
 func (s *Source) Stop() {
 	close(s.inputChannel)
+	<-s.done
 }

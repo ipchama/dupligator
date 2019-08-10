@@ -33,6 +33,7 @@ type Receiver struct {
 	localInterface           *net.Interface
 	inputChannel             chan *Message
 	outputPath               interface{}
+	done                     chan struct{}
 }
 
 func New(globalConfig *config.Config, myConfig *config.ReceiverConfig, errFunc func(error), logFunc func(string)) *Receiver {
@@ -47,6 +48,7 @@ func New(globalConfig *config.Config, myConfig *config.ReceiverConfig, errFunc f
 		log:          logFunc,
 		error:        errFunc,
 		inputChannel: make(chan *Message, 10000),
+		done:         make(chan struct{}),
 	}
 
 	return &r
@@ -306,7 +308,8 @@ func (r *Receiver) StartSending(wg *sync.WaitGroup) error {
 
 	go func() {
 		r.start()
-		r.log(r.name + " - receiver stopped.") // This message might never make it out.
+		r.log(r.name + " - receiver stopped.")
+		r.done <- struct{}{}
 		wg.Done()
 	}()
 
@@ -315,6 +318,7 @@ func (r *Receiver) StartSending(wg *sync.WaitGroup) error {
 
 func (r *Receiver) Stop() {
 	close(r.inputChannel)
+	<-r.done
 }
 
 func (r *Receiver) AddMessage(msg *Message) error {

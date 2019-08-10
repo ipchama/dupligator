@@ -272,6 +272,7 @@ func (m *Manager) runV6() error {
 				if atomic.LoadUint32(&m.stopping) == 0 { // Suppress errors that very likely occurred because the conn was closed by a call to Stop()
 					m.recordError(err)
 				}
+
 				break
 			}
 

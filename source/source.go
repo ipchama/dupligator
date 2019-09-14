@@ -45,9 +45,9 @@ func New(globalConfig *config.Config, Config *config.SourceConfig, errFunc func(
 
 func (s *Source) listen() {
 
-	m, ok := <-s.inputChannel
+	var m *receiver.Message
 
-	for ok {
+	for m = range s.inputChannel {
 		if s.Config.StickyBytesLength > 0 {
 
 			stickySum := hash(m.Payload[s.Config.StickyBytesStart:s.Config.StickyBytesEnd])
@@ -65,8 +65,6 @@ func (s *Source) listen() {
 				}
 			}
 		}
-
-		m, ok = <-s.inputChannel
 	}
 }
 

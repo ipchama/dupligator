@@ -174,9 +174,9 @@ func (r *Receiver) start() {
 
 		srcPort := r.globalConfig.LocalV4Config.Port
 
-		m, ok := <-r.inputChannel
+		var m *Message
 
-		for ok {
+		for m = range r.inputChannel {
 
 			if r.isIPv4 {
 
@@ -265,8 +265,6 @@ func (r *Receiver) start() {
 			if err != nil {
 				r.error(err)
 			}
-
-			m, ok = <-r.inputChannel
 		}
 
 		err := syscall.Close(outFD)
@@ -277,16 +275,14 @@ func (r *Receiver) start() {
 
 		conn := r.outputPath.(net.Conn)
 
-		m, ok := <-r.inputChannel
+		var m *Message
 
-		for ok {
+		for m = range r.inputChannel {
 			_, err := conn.Write(m.Payload)
 
 			if err != nil {
 				r.error(err)
 			}
-
-			m, ok = <-r.inputChannel
 		}
 
 		err := conn.Close()

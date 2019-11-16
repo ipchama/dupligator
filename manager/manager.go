@@ -25,14 +25,9 @@ type Manager struct {
 	receiverMap  map[string]*receiver.Receiver
 	v4Conn       net.Conn
 	v6Conn       net.Conn
-	logChannel   chan *LogMessage
-	errorChannel chan *LogMessage
+	logChannel   chan string
+	errorChannel chan string
 	stopping     uint32
-}
-
-type LogMessage struct {
-	Message string
-	Stop    bool
 }
 
 func New(globalConfig *config.Config) *Manager {
@@ -47,8 +42,8 @@ func New(globalConfig *config.Config) *Manager {
 
 		receiverMap: make(map[string]*receiver.Receiver),
 
-		logChannel:   make(chan *LogMessage, 1000),
-		errorChannel: make(chan *LogMessage, 1000),
+		logChannel:   make(chan string, 1000),
+		errorChannel: make(chan string, 1000),
 	}
 
 	return &m
@@ -105,11 +100,10 @@ func (m *Manager) Run() error {
 	// Start up the log channel reader
 	m.waitGroup.Add(1)
 	go func() {
-		msg, ok := <-m.logChannel
+		var msg string
 
-		for ok {
-			log.Printf("INFO: %s", msg.Message)
-			msg, ok = <-m.logChannel
+		for msg = range m.logChannel {
+			log.Printf("INFO: %s", msg)
 		}
 
 		m.waitGroup.Done()
@@ -118,10 +112,9 @@ func (m *Manager) Run() error {
 	// Start up the error channel reader
 	m.waitGroup.Add(1)
 	go func() {
-		msg, ok := <-m.errorChannel
-		for ok {
-			log.Printf("ERROR: %s", msg.Message)
-			msg, ok = <-m.errorChannel
+		var msg string
+		for msg = range m.errorChannel {
+			log.Printf("ERROR: %s", msg)
 		}
 		m.waitGroup.Done()
 	}()
@@ -357,22 +350,15 @@ func (m *Manager) Stop() {
 }
 
 func (m *Manager) recordLog(str string) {
-	msg := &LogMessage{
-		Message: str,
-	}
 	select {
-	case m.logChannel <- msg:
+	case m.logChannel <- str:
 	default:
 	}
 }
 
 func (m *Manager) recordError(err error) {
-	msg := &LogMessage{
-		Message: err.Error(),
-	}
-
 	select {
-	case m.errorChannel <- msg:
+	case m.errorChannel <- err.Error():
 	default:
 	}
 }

@@ -100,9 +100,8 @@ func (m *Manager) Run() error {
 	// Start up the log channel reader
 	m.waitGroup.Add(1)
 	go func() {
-		var msg string
 
-		for msg = range m.logChannel {
+		for msg := range m.logChannel {
 			log.Printf("INFO: %s", msg)
 		}
 
@@ -112,8 +111,7 @@ func (m *Manager) Run() error {
 	// Start up the error channel reader
 	m.waitGroup.Add(1)
 	go func() {
-		var msg string
-		for msg = range m.errorChannel {
+		for msg := range m.errorChannel {
 			log.Printf("ERROR: %s", msg)
 		}
 		m.waitGroup.Done()

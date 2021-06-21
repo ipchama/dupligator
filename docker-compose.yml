@@ -1,0 +1,11 @@
+dupligator:
+    #cap_add:
+    #- NET_RAW  # This already comes "for free" with docker.  No need to explicitly add it.
+    command: ' --config /etc/dupligator/config.yml '
+    image: dockerhama/dupligator:latest
+    log_driver: syslog
+    log_opt:
+        tag: '{{ .ImageName }}/{{ .Name }}'
+    net: host
+    volumes:
+    - ./config.yml:/etc/dupligator/config.yml
